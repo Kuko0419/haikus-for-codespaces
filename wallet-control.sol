@@ -1,65 +1,44 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.0;
 
-interface IERC20 {
-    function transfer(address recipient, uint256 amount) external returns (bool);
-    function balanceOf(address account) external view returns (uint256);
-}
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract WalletControl {
-    address private owner;
+contract FamilyWallet is Ownable {
+    IERC20 public token; // This is the ERC20 token (e.g., USDC, USDT, etc.)
+    mapping(address => bool) public approvedWallets; // List of approved wallets
+    uint256 public withdrawalLimit; // Optional withdrawal limit
 
-    // Ether and token balances
-    mapping(address => uint256[]) private etherBalances;
-    mapping(address => mapping(address => uint256)) private tokenBalances;
+    event FundsWithdrawn(address indexed wallet, uint256 amount);
+    event WalletApproved(address wallet, bool status);
 
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Unauthorized: Only owner");
-        _;
+    constructor(IERC20 _token) {
+        token = _token;
+        withdrawalLimit = 0; // No limit by default
     }
 
-    constructor() {
-        owner = msg.sender;
+    // Approve or revoke access for wallets
+    function approveWallet(address wallet, bool status) external onlyOwner {
+        approvedWallets[wallet] = status;
+        emit WalletApproved(wallet, status);
     }
 
-    // Get the owner of the contract
-    function getOwner() external view returns (address) {
-        return owner;
+    // Withdraw funds to an approved wallet
+    function withdraw(uint256 amount) external {
+        require(approvedWallets[msg.sender], "Not an approved wallet");
+        require(amount <= withdrawalLimit || withdrawalLimit == 0, "Exceeds withdrawal limit");
+
+        token.transfer(msg.sender, amount);
+        emit FundsWithdrawn(msg.sender, amount);
     }
 
-    // Deposit Ether into the contract
-    function depositEther() external payable {
-        require(msg.value > 0, "Must send some Ether");
-        etherBalances[msg.sender].push(msg.value);
+    // Set withdrawal limit
+    function setWithdrawalLimit(uint256 _limit) external onlyOwner {
+        withdrawalLimit = _limit;
     }
 
-    // Deposit ERC20 tokens into the contract
-    function depositToken(address token, uint256 amount) external {
-        require(amount > 0, "Must deposit tokens");
-        IERC20(token).transfer(address(this), amount); // Requires approval first
-        tokenBalances[msg.sender][token] += amount;
-    }
-
-    // Get Ether balances for an account
-    function getEtherBalance(address account) external view returns (uint256[] memory) {
-        return etherBalances[account];
-    }
-
-    // Get ERC20 token balance for an account
-    function getTokenBalance(address account, address token) external view returns (uint256) {
-        return tokenBalances[account][token];
-    }
-
-    // Withdraw Ether from the contract (only owner)
-    function withdrawEther(uint256 amount) external onlyOwner {
-        require(address(this).balance >= amount, "Insufficient Ether balance");
-        payable(msg.sender).transfer(amount);
-    }
-
-    // Withdraw ERC20 tokens from the contract (only owner)
-    function withdrawToken(address token, uint256 amount) external onlyOwner {
-        require(tokenBalances[msg.sender][token] >= amount, "Insufficient token balance");
-        tokenBalances[msg.sender][token] -= amount;
-        IERC20(token).transfer(msg.sender, amount);
+    // Transfer ownership to a new address
+    function transferOwnership(address newOwner) public override onlyOwner {
+        super.transferOwnership(newOwner);
     }
 }
