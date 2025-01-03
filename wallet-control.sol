@@ -1,44 +1,43 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol"; // Import OpenZeppelin's Ownable
 
 contract FamilyWallet is Ownable {
-    IERC20 public token; // This is the ERC20 token (e.g., USDC, USDT, etc.)
-    mapping(address => bool) public approvedWallets; // List of approved wallets
-    uint256 public withdrawalLimit; // Optional withdrawal limit
+    // State variables
+    uint256 public withdrawalLimit; // Maximum withdrawal amount
+    mapping(address => bool) public approvedWallets; // Approved wallets mapping
 
-    event FundsWithdrawn(address indexed wallet, uint256 amount);
-    event WalletApproved(address wallet, bool status);
-
-    constructor(IERC20 _token) {
-        token = _token;
-        withdrawalLimit = 0; // No limit by default
+    // Constructor to set the initial owner
+    constructor(address initialOwner) Ownable() {
+        transferOwnership(initialOwner); // Set the initial owner
     }
 
-    // Approve or revoke access for wallets
+    // Set the withdrawal limit (onlyOwner can call this)
+    function setWithdrawalLimit(uint256 _limit) external onlyOwner {
+        withdrawalLimit = _limit;
+    }
+
+    // Approve or revoke a wallet's status
     function approveWallet(address wallet, bool status) external onlyOwner {
         approvedWallets[wallet] = status;
-        emit WalletApproved(wallet, status);
     }
 
     // Withdraw funds to an approved wallet
     function withdraw(uint256 amount) external {
         require(approvedWallets[msg.sender], "Not an approved wallet");
-        require(amount <= withdrawalLimit || withdrawalLimit == 0, "Exceeds withdrawal limit");
+        require(amount <= withdrawalLimit, "Exceeds withdrawal limit");
+        require(address(this).balance >= amount, "Insufficient contract balance");
 
-        token.transfer(msg.sender, amount);
-        emit FundsWithdrawn(msg.sender, amount);
+        // Transfer the requested amount to the sender
+        payable(msg.sender).transfer(amount);
     }
 
-    // Set withdrawal limit
-    function setWithdrawalLimit(uint256 _limit) external onlyOwner {
-        withdrawalLimit = _limit;
-    }
+    // Fallback function to receive ETH
+    receive() external payable {}
 
-    // Transfer ownership to a new address
-    function transferOwnership(address newOwner) public override onlyOwner {
-        super.transferOwnership(newOwner);
+    // Function to get the contract's ETH balance
+    function getContractBalance() external view returns (uint256) {
+        return address(this).balance;
     }
 }
