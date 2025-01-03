@@ -1,4 +1,4 @@
-New repository in Remix IDE with the name Kuko.sol
+New repository in Remix IDE with the name walletcontrol.sol
 # Haikus for Codespaces
 
 This is a quick node project template for demoing Codespaces. It is based on the [Azure node sample](
